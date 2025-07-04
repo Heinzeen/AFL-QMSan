@@ -650,13 +650,19 @@ typedef struct afl_state {
   u8  *msan_traces;                     /* qmsan coverage of faulty instr   */
   u64 qmsan_crashes,                    /* Total crashes from qmsan         */
       heavyweight_runs,                 /* Total execution of full qmsan    */
-      qmsan_violations,                 /* Total number of runs with errors */
       qmsan_errors,                     /* Total error bytes in bitmap      */  
-      qmsan_mixed,                      /* Total mixed bytes in bitmap      */
       qmsan_edges,                      /* Total edges bytes in bitmap      */  
       qmsan_callstack,                  /* Total callstack bytes in bitmap  */  
-      qmsan_callstack_edges,            /* Total callstack edges in bitmap  */  
-      qmsan_memory;                     /* Total memory bytes in bitmap     */
+      qmsan_callstack_edges;            /* Total callstack edges in bitmap  */
+      /*flagging, never worked properly*/  
+#ifdef QMSAN_FLAGGING
+  u64 qmsan_violations,                 /* Total number of runs with errors */
+      qmsan_mixed;                      /* Total mixed bytes in bitmap      */
+#endif
+      /*memory tracking, sucks in binary*/
+#ifdef QMSAN_MEMORY
+  u64 qmsan_memory;                     /* Total memory bytes in bitmap     */
+#endif
   int qmsan_log_fd;
 #endif
 

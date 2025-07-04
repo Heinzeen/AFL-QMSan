@@ -341,11 +341,8 @@ void write_stats_file(afl_state_t *afl, u32 t_bytes, double bitmap_cvg,
       "***QMSAN stats***\n"
       "qmsan crashes     : %llu\n"
       "qmsan-full runs   : %llu\n"
-      "flag violations   : %llu\n"
       "error bits        : %llu\n"
-      "mixed bits        : %llu\n"
       "edges bits        : %llu\n"
-      "memory bits       : %llu\n"
       "callstack bits    : %llu\n"
       "callstack edges   : %llu\n"
 #endif
@@ -396,8 +393,8 @@ void write_stats_file(afl_state_t *afl, u32 t_bytes, double bitmap_cvg,
           : "default",
       afl->orig_cmdline
 #ifdef QMSAN
-      ,afl->qmsan_crashes, afl->heavyweight_runs, afl->qmsan_violations,
-      afl->qmsan_errors, afl->qmsan_mixed, afl->qmsan_edges, afl->qmsan_memory,
+      ,afl->qmsan_crashes, afl->heavyweight_runs,
+      afl->qmsan_errors, afl->qmsan_edges,
       afl->qmsan_callstack, afl->qmsan_callstack_edges
 #endif
       );
