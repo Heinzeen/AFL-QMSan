@@ -135,6 +135,11 @@
   #define AFL_RAND_RETURN u32
 #endif
 
+#ifdef QMSAN
+  //the name of the accurate detector's log
+  extern char *accurate_log;
+#endif
+
 extern s8  interesting_8[INTERESTING_8_LEN];
 extern s16 interesting_16[INTERESTING_8_LEN + INTERESTING_16_LEN];
 extern s32
@@ -664,6 +669,7 @@ typedef struct afl_state {
   u64 qmsan_memory;                     /* Total memory bytes in bitmap     */
 #endif
   int qmsan_log_fd;
+  int accurate_log_fd;
 #endif
 
   u32 slowest_exec_ms,                  /* Slowest testcase non hang in ms  */

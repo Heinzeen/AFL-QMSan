@@ -2259,10 +2259,20 @@ int main(int argc, char **argv_orig, char **envp) {
   //shared memory for forkserver
   sharedmem_t* msan_shm = calloc(1, sizeof(sharedmem_t));
   afl->fsrv.msan_bits = msan_shm_init(msan_shm);
+
+  //create QMSan's log file
   char* qmsan_log = alloc_printf("%s/%s", afl->out_dir, "qmsan_log");
   afl->qmsan_log_fd = open(qmsan_log, O_WRONLY | O_APPEND | O_CREAT | O_TRUNC, 0644);
   if(afl->qmsan_log_fd == -1){
     SAYF("Error while creating qmsan's logging file\n");
+    exit(0);
+  }
+
+  //create a log file for the accurate detector as well
+  accurate_log = alloc_printf("%s/%s", afl->out_dir, "accurate_log");
+  afl->accurate_log_fd = open(accurate_log, O_WRONLY | O_APPEND | O_CREAT | O_TRUNC, 0644);
+  if(afl->accurate_log_fd == -1){
+    SAYF("Error while creating accurate detector's logging file\n");
     exit(0);
   }
 #endif
@@ -3074,6 +3084,7 @@ stop_fuzzing:
   //forkserver shm cleaning
   msan_shm_deinit(msan_shm);
   close(afl->qmsan_log_fd);
+  close(afl->accurate_log_fd);
 #endif
 
   if (afl->shm_fuzz) {

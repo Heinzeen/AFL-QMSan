@@ -56,6 +56,8 @@ char * testcases;
 #define valgrind_path   "valgrind --expensive-definedness-checks=yes \
                         --exit-on-first-error=yes  --error-exitcode=-1 "
 
+char *accurate_log;
+
 #define QMSAN_DUMP_TP() \
         char *command = alloc_printf("cp %s/.cur_input %s/%llu", \
                         afl->out_dir, true_positives, afl->heavyweight_runs);\
@@ -246,6 +248,9 @@ int check_msan_trace(afl_state_t *afl, u8* trace){
   return heavyweight_needed;
 }
 
+//TODO: this should be moved in afl-fuzz.c and made a one-time thing.
+//      Also, in general, we should not rely on .cur_inpuut, instead
+//      we sahould make a generic cmdline with some fmt stuff and call it.
 void init_cmdline(afl_state_t *afl){
 
     int i = 2;
@@ -275,8 +280,8 @@ void init_cmdline(afl_state_t *afl){
       sprintf(cmdline + strlen(cmdline), "%s ", afl->argv[i]);
       i++;
     }
-    //make it quiet
-    sprintf(cmdline + strlen(cmdline), "%s ", " >>/dev/null 2>>/dev/null");
+    //redirect the output
+    sprintf(cmdline + strlen(cmdline), " >>%s 2>&1 ", accurate_log);
     if(strlen(cmdline) > 4095)    //TODO: make a proper exit in such case
       BADF("Buffer overflow\n");
     QMSAN_LOG("%s\n", cmdline);
