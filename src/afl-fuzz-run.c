@@ -266,7 +266,7 @@ void init_cmdline(afl_state_t *afl){
       //run valgrind --version to see if it is installed
       path = valgrind_path;
       char aux[256];
-      sprintf(aux, "%s %s >>/dev/null 2>>/dev/null", valgrind_path, "--version");
+      sprintf(aux, "%s %s >%s 2>&1", valgrind_path, "--version", accurate_log);
       int status = system(aux);
       if(WEXITSTATUS(status)){
         BADF("Error while trying to invoke valgrind (exit code: %d)", status);
