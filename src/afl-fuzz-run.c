@@ -295,6 +295,56 @@ void init_cmdline(afl_state_t *afl){
     mkdir(true_positives, 0777);
   
 }
+
+
+int qmsan_check_bugs(afl_state_t *afl){
+
+  int ret = 0;
+
+  if(!cmdline[0]){
+    init_cmdline(afl);
+  }
+
+  if(afl->fsrv.msan_bits && afl->fsrv.msan_bits[MAP_SIZE - 1]){
+    if(check_msan_trace(afl, afl->fsrv.msan_bits)){
+      afl->fsrv.msan_bits[MAP_SIZE - 1] = 0;
+      //use heavyweight instrumentation
+      QMSAN_LOG("Potential crash detected\n");
+      int status = (int) WEXITSTATUS(system(cmdline));
+      QMSAN_LOG("[system] exit status: %d\n", status);
+      //we keep going since they will be at least saved with the FP
+      //we can check them later
+      afl->heavyweight_runs++;
+      if((!valgrind_mode && afl->fsrv.msan_bits[MAP_SIZE - 1]) ||
+          (valgrind_mode && status == 255)){
+        afl->qmsan_crashes++;
+        QMSAN_LOG("True positive [%llu]!!!.\n", afl->qmsan_crashes);
+        ret = 1;
+        afl->fsrv.msan_bits[MAP_SIZE - 1] = 0;
+        QMSAN_DUMP_TP();
+      }
+      else{
+        QMSAN_LOG("False positive [%llu]\n", afl->heavyweight_runs);
+        QMSAN_DUMP_FP();
+      }
+      SAYF("\nmsan stats: [%llu/%llu]",
+            afl->qmsan_crashes, afl->heavyweight_runs);
+      QMSAN_LOG("msan stats: [%llu/%llu]\n",
+            afl->qmsan_crashes, afl->heavyweight_runs);
+    }
+  }
+#if defined QMSAN_FLAGGING || defined QMSAN_NAIVE
+  //in this modes we need QEMU to have fresh bits in its map
+  memset(afl->fsrv.msan_bits, QMSAN_AFL_UNTOUCHED, MAP_SIZE);
+#endif
+  if(logged){
+    QMSAN_LOG("\n\n")
+    logged = 0;
+  }
+
+  return ret;
+}
+
 #endif
 
 
@@ -350,49 +400,6 @@ if (getenv("QAFL_STORE_TESTCASES")) {
       runs_counter++;
     }
 }
-#endif
-
-#ifdef QMSAN
-  if(!cmdline[0]){
-    init_cmdline(afl);
-  }
-
-  if(afl->fsrv.msan_bits && afl->fsrv.msan_bits[MAP_SIZE - 1]){
-    if(check_msan_trace(afl, afl->fsrv.msan_bits)){
-      afl->fsrv.msan_bits[MAP_SIZE - 1] = 0;
-      //use heavyweight instrumentation
-      QMSAN_LOG("Potential crash detected\n");
-      int status = (int) WEXITSTATUS(system(cmdline));
-      QMSAN_LOG("[system] exit status: %d\n", status);
-      //we keep going since they will be at least saved with the FP
-      //we can check them later
-      afl->heavyweight_runs++;
-      if((!valgrind_mode && afl->fsrv.msan_bits[MAP_SIZE - 1]) ||
-          (valgrind_mode && status == 255)){
-        afl->qmsan_crashes++;
-        QMSAN_LOG("True positive [%llu]!!!.\n", afl->qmsan_crashes);
-        res = FSRV_RUN_CRASH;
-        afl->fsrv.msan_bits[MAP_SIZE - 1] = 0;
-        QMSAN_DUMP_TP();
-      }
-      else{
-        QMSAN_LOG("False positive [%llu]\n", afl->heavyweight_runs);
-        QMSAN_DUMP_FP();
-      }
-      SAYF("\nmsan stats: [%llu/%llu]",
-            afl->qmsan_crashes, afl->heavyweight_runs);
-      QMSAN_LOG("msan stats: [%llu/%llu]\n",
-            afl->qmsan_crashes, afl->heavyweight_runs);
-    }
-  }
-#if defined QMSAN_FLAGGING || defined QMSAN_NAIVE
-  //in this modes we need QEMU to have fresh bits in its map
-  memset(afl->fsrv.msan_bits, QMSAN_AFL_UNTOUCHED, MAP_SIZE);
-#endif
-  if(logged){
-    QMSAN_LOG("\n\n")
-    logged = 0;
-  }
 #endif
 
 #ifdef PROFILING
@@ -727,6 +734,12 @@ u8 calibrate_case(afl_state_t *afl, struct queue_entry *q, u8 *use_mem,
   u32 use_tmout = afl->fsrv.exec_tmout;
   u8 *old_sn = afl->stage_name;
 
+
+#ifdef QMSAN
+  u64 qmsan_start = 0;
+  u64 qmsan_time = 0;
+#endif
+
   if (unlikely(afl->shm.cmplog_mode)) { q->exec_cksum = 0; }
 
   /* Be a bit more generous about timeouts when resuming sessions, or when
@@ -782,6 +795,15 @@ u8 calibrate_case(afl_state_t *afl, struct queue_entry *q, u8 *use_mem,
 
     fault = fuzz_run_target(afl, &afl->fsrv, use_tmout);
 
+  #ifdef QMSAN
+    //In calibration, the time spent here is erroneously considered as
+    //execution time... let's subtract it...
+    qmsan_start = get_cur_time_us();
+    if(qmsan_check_bugs(afl))
+      fault = FSRV_RUN_CRASH;
+    qmsan_time += get_cur_time_us() - qmsan_start;
+  #endif
+
     /* afl->stop_soon is set by the handler for Ctrl+C. When it's pressed,
        we want to bail out quickly. */
 
@@ -824,6 +846,14 @@ u8 calibrate_case(afl_state_t *afl, struct queue_entry *q, u8 *use_mem,
     (void)write_to_testcase(afl, (void **)&use_mem, q->len, 1);
 
     fault = fuzz_run_target(afl, &afl->fsrv, use_tmout);
+  #ifdef QMSAN
+    //In calibration, the time spent here is erroneously considered as
+    //execution time... let's subtract it...
+    qmsan_start = get_cur_time_us();
+    if(qmsan_check_bugs(afl))
+      fault = FSRV_RUN_CRASH;
+    qmsan_time += get_cur_time_us() - qmsan_start;
+  #endif
 
     /* afl->stop_soon is set by the handler for Ctrl+C. When it's pressed,
        we want to bail out quickly. */
@@ -1138,6 +1168,10 @@ void sync_fuzzers(afl_state_t *afl) {
         (void)write_to_testcase(afl, (void **)&mem, st.st_size, 1);
 
         fault = fuzz_run_target(afl, &afl->fsrv, afl->fsrv.exec_tmout);
+#ifdef QMSAN
+        if(qmsan_check_bugs(afl))
+          fault = FSRV_RUN_CRASH;
+#endif
 
         if (afl->stop_soon) { goto close_sync; }
 
@@ -1269,6 +1303,10 @@ u8 trim_case(afl_state_t *afl, struct queue_entry *q, u8 *in_buf) {
       write_with_gap(afl, in_buf, q->len, remove_pos, trim_avail);
 
       fault = fuzz_run_target(afl, &afl->fsrv, afl->fsrv.exec_tmout);
+#ifdef QMSAN
+        if(qmsan_check_bugs(afl))
+          fault = FSRV_RUN_CRASH;
+#endif
 
       if (afl->stop_soon || fault == FSRV_RUN_ERROR) { goto abort_trimming; }
 
@@ -1385,6 +1423,10 @@ common_fuzz_stuff(afl_state_t *afl, u8 *out_buf, u32 len) {
   }
 
   fault = fuzz_run_target(afl, &afl->fsrv, afl->fsrv.exec_tmout);
+#ifdef QMSAN
+  if(qmsan_check_bugs(afl))
+    fault = FSRV_RUN_CRASH;
+#endif
 
   if (afl->stop_soon) { return 1; }
 

@@ -631,6 +631,10 @@ void read_foreign_testcases(afl_state_t *afl, int first) {
 
         u32 len = write_to_testcase(afl, (void **)&mem, st.st_size, 1);
         fault = fuzz_run_target(afl, &afl->fsrv, afl->fsrv.exec_tmout);
+#ifdef QMSAN
+        if(qmsan_check_bugs(afl))
+          fault = FSRV_RUN_CRASH;
+#endif
         afl->syncing_party = foreign_name;
         afl->queued_imported += save_if_interesting(afl, mem, len, fault);
         afl->syncing_party = 0;

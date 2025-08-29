@@ -726,6 +726,10 @@ save_if_interesting(afl_state_t *afl, void *mem, u32 len, u8 fault) {
         }
 
         new_fault = fuzz_run_target(afl, &afl->fsrv, afl->hang_tmout);
+#ifdef QMSAN
+        if(qmsan_check_bugs(afl))
+          new_fault = FSRV_RUN_CRASH;
+#endif
         classify_counts(&afl->fsrv);
 
         /* A corner case that one user reported bumping into: increasing the

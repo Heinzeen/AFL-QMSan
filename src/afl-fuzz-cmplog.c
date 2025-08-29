@@ -65,6 +65,10 @@ u8 common_fuzz_cmplog_stuff(afl_state_t *afl, u8 *out_buf, u32 len) {
   }
 
   fault = fuzz_run_target(afl, &afl->cmplog_fsrv, afl->fsrv.exec_tmout);
+#ifdef QMSAN
+  if(qmsan_check_bugs(afl))
+    fault = FSRV_RUN_CRASH;
+#endif
 
   if (afl->stop_soon) { return 1; }
 
