@@ -253,7 +253,7 @@ int check_msan_trace(afl_state_t *afl, u8* trace){
 //      we sahould make a generic cmdline with some fmt stuff and call it.
 void init_cmdline(afl_state_t *afl){
 
-    int i = 2;
+    int i = 0;
     //if we are in ARM, we need to add the ld_prefix for its libraries
     char* ld_prefix = getenv("QEMU_LD_PREFIX");
     if(ld_prefix)
@@ -276,6 +276,13 @@ void init_cmdline(afl_state_t *afl){
       valgrind_mode = 1;
     }
     sprintf(cmdline + strlen(cmdline), "%s ", path);
+
+    //first, we scan the cmdline to look for "qmsan" and ignore everything
+    //until that
+    while(!strstr(afl->argv[i++], "qmsan")){
+      //QMSAN_LOG("Ignoring %s %p\n", afl->argv[i], strstr(afl->argv[i], "qmsan"));
+    }
+    
     while(afl->argv[i]){//that strlen sucks, but we only have to do this once
       sprintf(cmdline + strlen(cmdline), "%s ", afl->argv[i]);
       i++;
